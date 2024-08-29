@@ -16,9 +16,12 @@ cloudinary.config({
             const response = await  cloudinary.uploader.upload(localFilePath, {
                 resource_type: "auto"
             })
+            console.log(response);
+            
 
             //file has been uploaded successfully
-            console.log("file is uploaded on cloudinary",response.url);
+            // console.log("file is uploaded on cloudinary",response.url);
+            fs.unlinkSync(localFilePath)  //automatic succes hone par file remove ho jayegi
             return response;
         } catch (error) {
             fs.unlink(localFilePath)  //remove the locally saved temporary file as the upload got failed
