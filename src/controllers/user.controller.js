@@ -164,7 +164,11 @@ const logoutUser = asyncHandler(async(req,res)=>{
     .json(new ApiResponse(200,{},"User logged Out "))
 })
 
-
+//user token ko refresh kara paye 
+const refreshAccessToken = asyncHandler(async(req,res)=>{
+    //token ko cokkies se access kar rahe hai
+    const incomingRefreshToken = req.cookies.refreshToken || req.body.refreshToken
+}) 
 
 export {
     registerUser,
