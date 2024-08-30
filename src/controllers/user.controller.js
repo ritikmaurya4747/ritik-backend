@@ -6,6 +6,8 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import jwt from "jsonwebtoken";
 import { response } from "express";
 
+
+// Access_Token or Refresh_Token -----------------------------
 const generateAccessAndRefreshTokens = async(userId)=>{
     try {
         const user = await User.findById(userId)
@@ -23,7 +25,7 @@ const generateAccessAndRefreshTokens = async(userId)=>{
     }
 }
 
-// Register user
+// Register user ----------------------------------------------
 const registerUser = asyncHandler( async(req,res) =>{
     // get user details from frontend  
     // validation - not empty   
@@ -94,7 +96,7 @@ const registerUser = asyncHandler( async(req,res) =>{
     )
 })
 
-// Login user
+// Login user --------------------------------------------------
 const loginUser = asyncHandler(async(req,res) =>{
     // req body -> data
     // username or email
@@ -140,7 +142,7 @@ const loginUser = asyncHandler(async(req,res) =>{
     .json(new ApiResponse(200,{user:loggedInUser,accessToken,refreshToken},'user logged in seccessfully'))
 })
 
-// LogOut user
+// LogOut user -------------------------------------------------
 const logoutUser = asyncHandler(async(req,res)=>{
     await User.findByIdAndUpdate(
         req.user._id,
@@ -165,7 +167,7 @@ const logoutUser = asyncHandler(async(req,res)=>{
     .json(new ApiResponse(200,{},"User logged Out "))
 })
 
-//user token ko refresh kara paye 
+//user token ko refresh kara paye  -----------------------------
 const refreshAccessToken = asyncHandler(async(req,res)=>{
     //token ko cokkies se access kar rahe hai
    try {
@@ -209,6 +211,118 @@ const refreshAccessToken = asyncHandler(async(req,res)=>{
    }
 }) 
 
+// Change Password ----------------------------------------------
+const changeCurrentPassword = asyncHandler(async(req,res)=>{
+    const {oldPassword, newPassword} = req.body
+
+    //user ke andar se user ki id nikal ke password check karenge 
+    const user = await User.findById(req.user?._id)
+    const isPasswordCorrect = await user.isPasswordCorrect(oldPassword)
+    if(!isPasswordCorrect){
+        throw new ApiError(400,"Invalid old password")
+    }
+    
+    //set new password
+    user.password = password
+    await user.save({validateBeforeSave: false})
+
+    return res
+    .status(200)
+    .json(new ApiResponse(200,{},"Password changed successfully"))
+})
+
+// Current User --------------------------------------------------
+const getCurrentUser =  asyncHandler(async(req,res)=>{
+    return res
+    .status(200)
+    .json(200,req.user,"Current user fetched successfully")
+})
+
+// Update Account Details -----------------------------------------
+const updateAccountDetails = asyncHandler(async(req,res)=>{
+    const {fullName, email} = req.body
+    if(!fullName || !email){
+        throw new ApiError(400,"All fields are required")
+    }
+
+    //update karenge 
+    User.findByIdAndUpdate(
+        req.user?._id,
+        {
+            $set:{
+                fullName,
+                email,
+            }
+        },
+        {new: true}
+    ).select("-password")
+
+    return res
+    .status(200)
+    .json(new ApiResponse(200, user,"Account details updated successfully"))
+})
+
+// Update User Avatar  ---------------------------------------------
+const updateUserAvatar = asyncHandler(async(req,res)=>{
+    //multer file upload kar dega
+    const avatarLocalPath = req.file?.path
+    if(!avatarLocalPath){
+        throw new ApiError(400,"Avatar file is missing")
+    }
+
+    //upload on cloudinary
+    const avatar = await uploadOnCloudinary(avatarLocalPath)
+    if(!avatar.url){
+        throw new ApiError(400,"Error while uploading on avatar")
+    }
+
+    //now update avatar ... yaha ham image ko update kar rahe hain
+    const user = await User.findByIdAndUpdate(
+        req.user?._id,
+        {
+            $set:{
+                avatar: avatar.url
+            }
+        },
+        {new:true}
+    ).select("-password")
+
+    return res
+    .status(200)
+    .json(new ApiResponse(200, user, "Avatar updated successfully"))
+})
+
+// Update User coverImage ------------------------------------------
+const updateUserCoverImage = asyncHandler(async(req,res)=>{
+    //multer file upload kar dega
+    const coverImageLocalPath = req.file?.path
+
+    if(!coverImageLocalPath){
+        throw new ApiError(400,"Cover image file is missing")
+    }
+
+    //upload on cloudinary
+    const coverImage = await uploadOnCloudinary(coverImageLocalPath)
+    if(!coverImage.url){
+        throw new ApiError(400,"Error while uploading on coverImage")
+    }
+
+    //now update coverImage ... yaha ham image ko update kar rahe hain
+    const user = await User.findByIdAndUpdate(
+        req.user?._id,
+        {
+            $set:{
+                coverImage: coverImage.url        //2:12:00
+            }
+        },
+        {new:true}
+    ).select("-password")
+
+    return res
+    .status(200)
+    .json(new ApiResponse(200, user, "Cover Imgage updated successfully"))
+})
+
 
 
 export {
@@ -216,4 +330,9 @@ export {
     loginUser,
     logoutUser,
     refreshAccessToken,
+    changeCurrentPassword,
+    getCurrentUser,
+    updateAccountDetails,
+    updateUserAvatar,
+    updateUserCoverImage,
 }
