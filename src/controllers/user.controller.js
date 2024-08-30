@@ -3,8 +3,26 @@ import {ApiError} from "../utils/ApiError.js"
 import { User } from "../models/user.model.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
+import { response } from "express";
 
+const generateAccessAndRefreshTokens = async(userId)=>{
+    try {
+        const user = await User.findById(userId)
+        const accessToken = user.generateAccessToken()
+        const refreshToken = user.generateRefreshToken()
 
+        //refreshToken ko database me save kar rahe hai login me use hoga 
+        user.refreshToken = refreshToken
+        await user.save({validateBeforeSave: false})
+        //jab ye sab successful  yaha tak ho jayega to inhe return kar do 
+        return {accessToken,refreshToken}
+
+    } catch (error) {
+        throw new ApiError(500,'Something went wrong while generating refresh and access token')
+    }
+}
+
+// Register user
 const registerUser = asyncHandler( async(req,res) =>{
     // get user details from frontend  
     // validation - not empty   
@@ -75,7 +93,81 @@ const registerUser = asyncHandler( async(req,res) =>{
     )
 })
 
+// Login user
+const loginUser = asyncHandler(async(req,res) =>{
+    // req body -> data
+    // username or email
+    // find the user
+    // password checks 
+    // access and refresh token
+    // send cokkies  
+    // video part two time(9:25)
+
+    const {email, username, password} =req.body
+    if(!(username || !email)){   //01:05:55
+        throw new ApiError(400,"username or email is required")
+    }
+
+    // dono me se ek email or username  hona hi chahiye
+    const user = await User.findOne({$or:[{username},{email}]})
+    if(!user){
+        throw new ApiError(404,'User does not exist')
+    }
+
+    //password check kar rahe hai ye password req.body se aa raha h
+    const isPasswordValid = await user.isPasswordCorrect(password)
+    if(!isPasswordValid){
+        throw new ApiError(401,"Invalid user credentials")
+    }
+
+    //yaha hame access or generate tokens ko use kar rahe h jo uper likha h
+    const {accessToken,refreshToken} = await generateAccessAndRefreshTokens(user._id)
+
+    //database ko phir se query bhej rahe hai
+    const loggedInUser = await User.findById(user._id).select("-password -refreshToken") 
+
+    // cokkies bhejane se pahale options desigend karne hote hai
+    const options = {
+        httpOnly: true,  //ye bas server se modify hoga frontend se nahi
+        secure: true
+    }
+    //yaha ham data bhej rahe hain 
+    return res
+    .status(200)
+    .cookie("accessToken",accessToken,options)
+    .cookie("refreshToken",refreshToken,options)
+    .json(new ApiResponse(200,{user:loggedInUser,accessToken,refreshToken},'user logged in seccessfully'))
+})
+
+// LogOut user
+const logoutUser = asyncHandler(async(req,res)=>{
+    await User.findByIdAndUpdate(
+        req.user._id,
+        {
+            $set:{
+                refreshToken: undefined 
+            }
+        },
+        {
+            new:true
+        }
+    )
+    const options = {
+        httpOnly: true,
+        secure:true 
+    }
+    //cookie ko yaha ab clear kar rahe hain
+    return res
+    .status(200)
+    .clearCookie("accessToken",options)
+    .clearCookie("refreshToken",options)
+    .json(new ApiResponse(200,{},"User logged Out "))
+})
+
+
 
 export {
     registerUser,
+    loginUser,
+    logoutUser,
 }
